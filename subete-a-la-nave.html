@@ -536,59 +536,24 @@ onValue(ref(window.db, '.info/connected'), (snap) => {
   actualizarPanelDebug();
 });
 
-// ÚNICA escucha en tiempo real para toda la sala (jugadores + partida + estimaciones a la vez)
-onValue(rootRef, (snapshot) => {
-  const jugadoresSnap = snapshot.child('jugadores');
-  players = [];
-  jugadoresSnap.forEach((child) => players.push({ id: child.key, ...child.val() }));
-
-  partida = snapshot.child('partida').val();
-  estimaciones = snapshot.child('estimaciones').val() || {};
-
-  playersLoaded = true;
-  partidaLoaded = true;
-  estimacionesLoaded = true;
-  ultimoErrorFirebase = null;
-
-  updateRankingUI();
-  actualizarPanelDebug();
-  maybeRenderApp();
-}, (error) => {
-  ultimoErrorFirebase = 'sala: ' + error.message;
-  actualizarPanelDebug();
-});
-
-// En móvil, cambiar de app (ej. a WhatsApp para compartir el link) y volver puede
-// dejar la conexión en tiempo real "dormida" sin que se refresque sola.
-// Forzamos una relectura fresca de todo en cuanto la pestaña vuelve a estar visible.
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  get(rootRef).then((snap) => {
-    const freshPlayers = [];
-    snap.child('jugadores').forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
-    if (freshPlayers.length >= players.length) players = freshPlayers;
-    partida = snap.child('partida').val();
-    estimaciones = snap.child('estimaciones').val() || {};
-    playersLoaded = true; partidaLoaded = true; estimacionesLoaded = true;
-    updateRankingUI();
-    maybeRenderApp();
-  }).catch(() => {});
-});
-
-// RED DE SEGURIDAD: además de escuchar en tiempo real, refrescamos manualmente
-// cada pocos segundos por si el "push" en tiempo real no llega de forma fiable
-// en algún dispositivo/red concreta (esto NO depende del websocket, son lecturas
-// puntuales normales, mucho más robustas frente a redes o navegadores raros).
-setInterval(async () => {
+// NUEVA LÓGICA (sin onValue para los datos del juego):
+// Firebase reutiliza la caché interna de un onValue activo cuando se llama a get()
+// en la misma ruta, así que si el onValue se queda "atascado" en algún dispositivo,
+// el get() de al lado también devuelve ese mismo dato atascado — no es una prueba
+// independiente. Para evitarlo del todo, quitamos el onValue de los datos del juego
+// y dependemos ÚNICAMENTE de lecturas get() frescas y periódicas, que Firebase
+// está obligado a resolver contra el servidor al no haber ningún listener activo
+// en esa ruta.
+async function sincronizarConFirebase() {
   try {
     const snap = await get(rootRef);
     const freshPlayers = [];
     snap.child('jugadores').forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
 
-    // Nunca dejamos que el refresco automático "encoja" la lista de jugadores:
-    // si trae menos jugadores que los que ya conocíamos, es casi seguro una
-    // lectura desfasada por una carrera con una escritura reciente (alguien
-    // uniéndose ahora mismo), así que la ignoramos para esa parte.
+    // Nunca dejamos que un refresco "encoja" la lista de jugadores: si trae menos
+    // jugadores que los que ya conocíamos, es casi seguro una lectura desfasada
+    // por una carrera con una escritura reciente (alguien uniéndose ahora mismo),
+    // así que la ignoramos para esa parte.
     let playersParaUsar = players;
     let huboCambiosJugadores = false;
     if (freshPlayers.length >= players.length) {
@@ -611,10 +576,20 @@ setInterval(async () => {
     actualizarPanelDebug();
     if (huboCambios) { updateRankingUI(); maybeRenderApp(); }
   } catch (e) {
-    ultimoErrorFirebase = 'polling: ' + e.message;
+    ultimoErrorFirebase = 'sync: ' + e.message;
     actualizarPanelDebug();
   }
-}, 3000);
+}
+
+// Primera sincronización inmediata al cargar, y luego cada 2 segundos sin parar.
+sincronizarConFirebase();
+setInterval(sincronizarConFirebase, 2000);
+
+// En móvil, cambiar de app (ej. a WhatsApp para compartir el link) y volver puede
+// dejar las cosas paradas un instante; forzamos una sincronización extra al volver.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') sincronizarConFirebase();
+});
 
 // ==========================================================================
 // 7. RANKING SIDEBAR
@@ -1260,3 +1235,4 @@ generateStarfield();
 </script>
 </body>
 </html>
+
