@@ -269,9 +269,9 @@ Volver a Jugar
 // ==========================================================================
 // 1. INICIALIZACIÓN DE FIREBASE
 // ==========================================================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-analytics.js";
-import { getDatabase, ref, push, onValue, set, remove, update, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics.js";
+import { getDatabase, ref, push, onValue, set, remove, update, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCD2wJucsOwRYC0EFe6yTBRLLcOqaM4d0g",
@@ -293,6 +293,11 @@ window.set = set;
 window.remove = remove;
 const analytics = getAnalytics(app);
 
+// NUEVA LÓGICA: en vez de 3 escuchas independientes (jugadores/partida/estimaciones),
+// escuchamos UNA sola vez el nodo raíz de la sala y repartimos los datos desde ahí.
+// Menos conexiones simultáneas = menos piezas que puedan fallar de forma distinta
+// entre dispositivos.
+const rootRef = ref(window.db, 'sala_de_lanzamiento');
 const playersRef = ref(window.db, 'sala_de_lanzamiento/jugadores');
 const partidaRef = ref(window.db, 'sala_de_lanzamiento/partida');
 const estimacionesRef = ref(window.db, 'sala_de_lanzamiento/estimaciones');
@@ -531,36 +536,25 @@ onValue(ref(window.db, '.info/connected'), (snap) => {
   actualizarPanelDebug();
 });
 
-onValue(playersRef, (snapshot) => {
+// ÚNICA escucha en tiempo real para toda la sala (jugadores + partida + estimaciones a la vez)
+onValue(rootRef, (snapshot) => {
+  const jugadoresSnap = snapshot.child('jugadores');
   players = [];
-  snapshot.forEach((child) => players.push({ id: child.key, ...child.val() }));
+  jugadoresSnap.forEach((child) => players.push({ id: child.key, ...child.val() }));
+
+  partida = snapshot.child('partida').val();
+  estimaciones = snapshot.child('estimaciones').val() || {};
+
   playersLoaded = true;
+  partidaLoaded = true;
+  estimacionesLoaded = true;
   ultimoErrorFirebase = null;
+
   updateRankingUI();
   actualizarPanelDebug();
   maybeRenderApp();
 }, (error) => {
-  ultimoErrorFirebase = 'jugadores: ' + error.message;
-  actualizarPanelDebug();
-});
-
-onValue(partidaRef, (snapshot) => {
-  partida = snapshot.val();
-  partidaLoaded = true;
-  ultimoErrorFirebase = null;
-  actualizarPanelDebug();
-  maybeRenderApp();
-}, (error) => {
-  ultimoErrorFirebase = 'partida: ' + error.message;
-  actualizarPanelDebug();
-});
-
-onValue(estimacionesRef, (snapshot) => {
-  estimaciones = snapshot.val() || {};
-  estimacionesLoaded = true;
-  maybeRenderApp();
-}, (error) => {
-  ultimoErrorFirebase = 'estimaciones: ' + error.message;
+  ultimoErrorFirebase = 'sala: ' + error.message;
   actualizarPanelDebug();
 });
 
@@ -569,24 +563,16 @@ onValue(estimacionesRef, (snapshot) => {
 // Forzamos una relectura fresca de todo en cuanto la pestaña vuelve a estar visible.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  Promise.all([
-    get(playersRef).then((snap) => {
-      players = [];
-      snap.forEach((child) => players.push({ id: child.key, ...child.val() }));
-      playersLoaded = true;
-    }).catch(() => {}),
-    get(partidaRef).then((snap) => {
-      partida = snap.val();
-      partidaLoaded = true;
-    }).catch(() => {}),
-    get(estimacionesRef).then((snap) => {
-      estimaciones = snap.val() || {};
-      estimacionesLoaded = true;
-    }).catch(() => {})
-  ]).then(() => {
+  get(rootRef).then((snap) => {
+    const freshPlayers = [];
+    snap.child('jugadores').forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
+    if (freshPlayers.length >= players.length) players = freshPlayers;
+    partida = snap.child('partida').val();
+    estimaciones = snap.child('estimaciones').val() || {};
+    playersLoaded = true; partidaLoaded = true; estimacionesLoaded = true;
     updateRankingUI();
     maybeRenderApp();
-  });
+  }).catch(() => {});
 });
 
 // RED DE SEGURIDAD: además de escuchar en tiempo real, refrescamos manualmente
@@ -595,19 +581,28 @@ document.addEventListener('visibilitychange', () => {
 // puntuales normales, mucho más robustas frente a redes o navegadores raros).
 setInterval(async () => {
   try {
-    const [playersSnap, partidaSnap, estimacionesSnap] = await Promise.all([
-      get(playersRef), get(partidaRef), get(estimacionesRef)
-    ]);
+    const snap = await get(rootRef);
     const freshPlayers = [];
-    playersSnap.forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
-    const freshPlayersStr = JSON.stringify(freshPlayers);
-    const freshPartida = partidaSnap.val();
+    snap.child('jugadores').forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
+
+    // Nunca dejamos que el refresco automático "encoja" la lista de jugadores:
+    // si trae menos jugadores que los que ya conocíamos, es casi seguro una
+    // lectura desfasada por una carrera con una escritura reciente (alguien
+    // uniéndose ahora mismo), así que la ignoramos para esa parte.
+    let playersParaUsar = players;
+    let huboCambiosJugadores = false;
+    if (freshPlayers.length >= players.length) {
+      const cambioReal = JSON.stringify(freshPlayers) !== JSON.stringify(players);
+      if (cambioReal) { playersParaUsar = freshPlayers; huboCambiosJugadores = true; }
+    }
+
+    const freshPartida = snap.child('partida').val();
     const freshPartidaStr = JSON.stringify(freshPartida);
-    const freshEstimaciones = estimacionesSnap.val() || {};
+    const freshEstimaciones = snap.child('estimaciones').val() || {};
     const freshEstimacionesStr = JSON.stringify(freshEstimaciones);
 
-    let huboCambios = false;
-    if (freshPlayersStr !== JSON.stringify(players)) { players = freshPlayers; huboCambios = true; }
+    let huboCambios = huboCambiosJugadores;
+    players = playersParaUsar;
     if (freshPartidaStr !== JSON.stringify(partida)) { partida = freshPartida; huboCambios = true; }
     if (freshEstimacionesStr !== JSON.stringify(estimaciones)) { estimaciones = freshEstimaciones; huboCambios = true; }
 
@@ -1265,4 +1260,3 @@ generateStarfield();
 </script>
 </body>
 </html>
-
