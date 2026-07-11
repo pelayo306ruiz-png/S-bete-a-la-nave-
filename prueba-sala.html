@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prueba mínima de sala</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 20px; background: #111; color: #eee; }
+  input, button { font-size: 18px; padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+  #lista { margin-top: 20px; }
+  .jugador { background: #222; padding: 10px; margin: 6px 0; border-radius: 8px; }
+  #estado { font-family: monospace; font-size: 12px; padding: 8px; background: #333; border-radius: 6px; margin-bottom: 15px; white-space: pre-wrap; }
+  #log { font-family: monospace; font-size: 11px; color: #9ca3af; margin-top: 20px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h2>🧪 Prueba mínima de sala</h2>
+<div id="estado">Cargando Firebase...</div>
+
+<input type="text" id="nombre" placeholder="Tu nombre">
+<button id="btnUnir">Unirme (modo ONVALUE)</button>
+<button id="btnUnirPoll">Unirme (modo GET cada 2s)</button>
+
+<h3>Jugadores en la sala (vía onValue):</h3>
+<div id="lista">—</div>
+
+<h3>Jugadores en la sala (vía GET manual, botón):</h3>
+<button id="btnGetManual">🔄 Leer AHORA con get()</button>
+<div id="listaGet">—</div>
+
+<div id="log"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, push, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCD2wJucsOwRYC0EFe6yTBRLLcOqaM4d0g",
+  authDomain: "sube-a-la-nave.firebaseapp.com",
+  databaseURL: "https://sube-a-la-nave-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "sube-a-la-nave",
+  storageBucket: "sube-a-la-nave.firebasestorage.app",
+  messagingSenderId: "763535366101",
+  appId: "1:763535366101:web:0674eca40c8f576c98cf5c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const testRef = ref(db, 'prueba_minima');
+
+const estadoEl = document.getElementById('estado');
+const logEl = document.getElementById('log');
+function log(msg) {
+  const t = new Date().toLocaleTimeString();
+  logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+}
+
+onValue(ref(db, '.info/connected'), (snap) => {
+  estadoEl.textContent = `Conexión: ${snap.val() === true ? '🟢 conectado' : '🟠 reconectando'}\nProyecto: ${firebaseConfig.projectId}`;
+});
+
+// --- MODO 1: onValue en tiempo real ---
+onValue(testRef, (snapshot) => {
+  const lista = document.getElementById('lista');
+  const jugadores = [];
+  snapshot.forEach(child => jugadores.push(child.val().nombre));
+  lista.innerHTML = jugadores.length
+    ? jugadores.map(n => `<div class="jugador">👤 ${n}</div>`).join('')
+    : '<em>Nadie todavía</em>';
+  log(`onValue disparado: ${jugadores.length} jugador(es) → [${jugadores.join(', ')}]`);
+}, (error) => {
+  log(`❌ ERROR en onValue: ${error.message}`);
+});
+
+document.getElementById('btnUnir').addEventListener('click', async () => {
+  const nombre = document.getElementById('nombre').value.trim();
+  if (!nombre) return;
+  try {
+    const nuevoRef = push(testRef);
+    await set(nuevoRef, { nombre, hora: Date.now() });
+    log(`✅ Escritura OK (modo push/set): ${nombre}`);
+  } catch (e) {
+    log(`❌ ERROR al escribir: ${e.message}`);
+  }
+});
+
+// --- MODO 2: unirse pero forzando lectura por get() en bucle, SIN onValue en juego ---
+document.getElementById('btnUnirPoll').addEventListener('click', async () => {
+  const nombre = document.getElementById('nombre').value.trim();
+  if (!nombre) return;
+  try {
+    const nuevoRef = push(testRef);
+    await set(nuevoRef, { nombre, hora: Date.now() });
+    log(`✅ Escritura OK (modo poll): ${nombre}`);
+  } catch (e) {
+    log(`❌ ERROR al escribir: ${e.message}`);
+  }
+});
+
+async function leerConGet() {
+  try {
+    const snap = await get(testRef);
+    const jugadores = [];
+    snap.forEach(child => jugadores.push(child.val().nombre));
+    document.getElementById('listaGet').innerHTML = jugadores.length
+      ? jugadores.map(n => `<div class="jugador">👤 ${n}</div>`).join('')
+      : '<em>Nadie todavía</em>';
+    log(`get() manual: ${jugadores.length} jugador(es) → [${jugadores.join(', ')}]`);
+  } catch (e) {
+    log(`❌ ERROR en get(): ${e.message}`);
+  }
+}
+document.getElementById('btnGetManual').addEventListener('click', leerConGet);
+setInterval(leerConGet, 2000);
+leerConGet();
+
+log('Página cargada, esperando acciones...');
+</script>
+</body>
+</html>
