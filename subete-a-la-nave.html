@@ -552,6 +552,33 @@ document.addEventListener('visibilitychange', () => {
   });
 });
 
+// RED DE SEGURIDAD: además de escuchar en tiempo real, refrescamos manualmente
+// cada pocos segundos por si el "push" en tiempo real no llega de forma fiable
+// en algún dispositivo/red concreta (esto NO depende del websocket, son lecturas
+// puntuales normales, mucho más robustas frente a redes o navegadores raros).
+setInterval(async () => {
+  try {
+    const [playersSnap, partidaSnap, estimacionesSnap] = await Promise.all([
+      get(playersRef), get(partidaRef), get(estimacionesRef)
+    ]);
+    const freshPlayers = [];
+    playersSnap.forEach((child) => freshPlayers.push({ id: child.key, ...child.val() }));
+    const freshPlayersStr = JSON.stringify(freshPlayers);
+    const freshPartida = partidaSnap.val();
+    const freshPartidaStr = JSON.stringify(freshPartida);
+    const freshEstimaciones = estimacionesSnap.val() || {};
+    const freshEstimacionesStr = JSON.stringify(freshEstimaciones);
+
+    let huboCambios = false;
+    if (freshPlayersStr !== JSON.stringify(players)) { players = freshPlayers; huboCambios = true; }
+    if (freshPartidaStr !== JSON.stringify(partida)) { partida = freshPartida; huboCambios = true; }
+    if (freshEstimacionesStr !== JSON.stringify(estimaciones)) { estimaciones = freshEstimaciones; huboCambios = true; }
+
+    playersLoaded = true; partidaLoaded = true; estimacionesLoaded = true;
+    if (huboCambios) { updateRankingUI(); maybeRenderApp(); }
+  } catch (e) { /* red temporalmente no disponible: se reintenta en el siguiente ciclo */ }
+}, 3000);
+
 // ==========================================================================
 // 7. RANKING SIDEBAR
 // ==========================================================================
@@ -1196,3 +1223,5 @@ generateStarfield();
 </script>
 </body>
 </html>
+
+
