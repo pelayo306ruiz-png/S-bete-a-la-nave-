@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>¡Súbete a la Nave! - El Juego de las Estimaciones Imposibles</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+body {
+font-family: 'Outfit', sans-serif;
+background: radial-gradient(circle at center, #0B0F19 0%, #030712 100%);
+overflow-x: hidden;
+}
+.header-font { font-family: 'Space Grotesk', sans-serif; }
+.glow-cyan { box-shadow: 0 0 20px rgba(6, 182, 212, 0.2); }
+.glow-pink { box-shadow: 0 0 20px rgba(236, 72, 153, 0.2); }
+@keyframes floating {
+0%, 100% { transform: translateY(0px) rotate(0deg); }
+50% { transform: translateY(-10px) rotate(0.5deg); }
+}
+.float-anim { animation: floating 3s ease-in-out infinite; }
+@keyframes shake {
+0%, 100% { transform: translate(0, 0) rotate(0deg); }
+10% { transform: translate(-3px, 2px) rotate(-1deg); }
+30% { transform: translate(3px, -2px) rotate(1deg); }
+50% { transform: translate(-2px, -3px) rotate(-1deg); }
+70% { transform: translate(3px, 3px) rotate(1deg); }
+90% { transform: translate(-3px, -1px) rotate(-0.5deg); }
+}
+.shake-anim { animation: shake 0.1s infinite !important; }
+@keyframes twinkle {
+0%, 100% { opacity: 0.2; }
+50% { opacity: 1; }
+}
+.star { animation: twinkle 2s infinite ease-in-out; }
+@keyframes alarm-flash {
+0%, 100% { background-color: rgba(239, 68, 68, 0); }
+50% { background-color: rgba(239, 68, 68, 0.25); }
+}
+.alarm-active { animation: alarm-flash 0.5s infinite; }
+.seat-node { transition: all 1s cubic-bezier(0.34, 1.56, 0.64, 1); }
+</style>
+</head>
+<body class="min-h-screen text-gray-100 flex flex-col justify-between relative">
+
+<div class="absolute inset-0 pointer-events-none overflow-hidden z-0" id="starfield"></div>
+
+<div class="fixed top-6 right-6 z-40">
+<button id="btn-toggle-ranking" class="w-14 h-14 bg-gradient-to-tr from-amber-500 to-yellow-400 text-gray-950 rounded-2xl flex items-center justify-center text-2xl shadow-xl hover:scale-110 active:scale-95 transition-all duration-200">
+<i class="fa-solid fa-trophy"></i>
+</button>
+</div>
+
+<div id="ranking-sidebar" class="fixed top-0 right-0 h-full w-80 bg-gray-950/95 border-l border-gray-800 shadow-2xl translate-x-full transition-transform duration-300 ease-out z-50 p-6 flex flex-col justify-between backdrop-blur-md">
+<div>
+<div class="flex justify-between items-center mb-6">
+<h3 class="header-font text-xl font-bold text-white flex items-center gap-2">
+<i class="fa-solid fa-ranking-star text-amber-400"></i> Ranking Global
+</h3>
+<button id="btn-close-ranking" class="text-gray-400 hover:text-white text-lg p-2">
+<i class="fa-solid fa-xmark"></i>
+</button>
+</div>
+<div class="space-y-3 overflow-y-auto max-h-[75vh]" id="sidebar-ranking-list">
+<p class="text-center text-gray-500 italic py-4">Añade jugadores para ver el ranking.</p>
+</div>
+</div>
+<div class="text-xs text-gray-500 text-center border-t border-gray-850 pt-4">
+¡Súbete a la Nave! • Marcador Oficial
+</div>
+</div>
+
+<div id="fade-overlay" class="fixed inset-0 bg-black opacity-0 pointer-events-none transition-opacity duration-500 z-50 flex items-center justify-center">
+<div class="text-center">
+<div class="text-cyan-400 text-6xl mb-4 animate-spin"><i class="fa-solid fa-circle-notch"></i></div>
+<h3 class="header-font text-2xl font-bold tracking-widest text-white uppercase" id="fade-overlay-text">Estableciendo Órbita</h3>
+</div>
+</div>
+
+<header class="w-full max-w-6xl mx-auto py-5 px-6 flex justify-between items-center border-b border-gray-800/80 bg-gray-950/40 backdrop-blur-md rounded-b-2xl relative z-10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center text-2xl shadow-lg">
+<i class="fa-solid fa-rocket animate-pulse text-gray-950"></i>
+</div>
+<div>
+<h1 class="header-font text-2xl font-black bg-gradient-to-r from-cyan-400 to-pink-500 bg-clip-text text-transparent">¡SÚBETE A LA NAVE!</h1>
+<p class="text-xs text-gray-400 font-semibold tracking-wider uppercase">El Juego de Estimación Absurda</p>
+</div>
+</div>
+<div class="flex items-center gap-3 pr-16">
+<span class="text-sm text-gray-400 font-bold" id="round-indicator">Únete a la tripulación</span>
+</div>
+</header>
+
+<main class="flex-grow w-full max-w-6xl mx-auto py-8 px-6 relative z-10 flex flex-col justify-center">
+
+<!-- PANTALLA 1: UNIRSE / SALA DE ESPERA (contenido dinámico según el estado) -->
+<section id="screen-setup" class="w-full max-w-2xl mx-auto bg-gray-900/80 border border-gray-800 rounded-3xl p-8 glow-cyan">
+<div id="setup-dynamic-content"></div>
+</section>
+
+<!-- PANTALLA 2: LA PREGUNTA Y TU ESTIMACIÓN PERSONAL -->
+<section id="screen-guesses" class="hidden w-full space-y-8">
+<div class="bg-gradient-to-r from-gray-900 via-gray-900 to-cyan-950/40 border border-cyan-500/30 rounded-3xl p-8 shadow-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 text-xs font-bold text-cyan-400 tracking-widest uppercase">DATOS IMPOSIBLES</div>
+<div class="flex items-start gap-4">
+<span class="text-4xl text-cyan-400 mt-1"><i class="fa-solid fa-circle-question"></i></span>
+<div>
+<h2 class="header-font text-2xl font-bold mb-3 text-white">Pregunta de la Ronda</h2>
+<p id="current-question" class="text-xl md:text-2xl font-light text-gray-200 leading-relaxed">Cargando...</p>
+</div>
+</div>
+</div>
+
+<div>
+<h3 class="header-font text-lg font-bold text-gray-400 uppercase tracking-widest mb-4">Tu Estimación Secreta</h3>
+<div class="grid grid-cols-1 gap-4" id="guesses-grid">
+</div>
+</div>
+</section>
+
+<!-- PANTALLA 3: CABINA DE DECISIONES DE LA TRIPULACIÓN -->
+<section id="screen-decisions" class="hidden w-full space-y-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+<div class="lg:col-span-7 bg-slate-950/90 rounded-3xl border border-gray-800 p-6 flex flex-col justify-between items-center relative min-h-[500px] overflow-hidden" id="flight-cabin-sim">
+<div class="absolute inset-0 pointer-events-none z-0">
+<div class="absolute bottom-[-100px] left-[-100px] w-64 h-64 rounded-full bg-emerald-950/20 border border-emerald-500/10"></div>
+<div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-emerald-900/40 to-transparent border-t border-emerald-800/10"></div>
+<div class="absolute bottom-3 left-6 text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest"><i class="fa-solid fa-earth-americas mr-1.5"></i> Tierra (Zona de Eyección Segura)</div>
+</div>
+
+<div class="relative z-10 w-full flex justify-between items-center bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur-sm">
+<span class="text-xs font-bold text-gray-400 uppercase tracking-widest"><i class="fa-solid fa-rocket mr-2"></i> Simulador de Cabina</span>
+<span class="text-xs font-black text-pink-400 uppercase tracking-wider bg-pink-500/10 px-3 py-1 rounded-full border border-pink-500/30">Fase de Decisiones</span>
+</div>
+
+<div class="relative z-10 w-full flex-grow flex items-center justify-center min-h-[340px]" id="cabin-stage">
+<div class="absolute w-72 h-80 bg-gradient-to-b from-gray-900 to-slate-900/80 border-2 border-cyan-500/30 rounded-t-[140px] rounded-b-[40px] flex flex-col justify-between p-6 shadow-2xl" id="graphic-spaceship">
+<div class="w-full h-16 border-b border-cyan-500/30 flex items-center justify-center relative bg-cyan-950/20 rounded-t-[100px]">
+<div class="absolute top-1 text-[8px] font-black tracking-widest text-pink-400 uppercase">Capitán</div>
+<div id="cabin-captain-spot" class="flex flex-col items-center justify-center"></div>
+</div>
+<div class="flex-grow grid grid-cols-3 gap-2 p-2 mt-4 items-center justify-center relative" id="cabin-passengers-grid"></div>
+</div>
+<div class="absolute bottom-2 left-0 right-0 flex justify-around px-4" id="cabin-earth-zone"></div>
+</div>
+
+<div class="relative z-10 w-full bg-pink-950/20 border border-pink-500/30 p-3.5 rounded-xl flex items-center justify-between">
+<div class="text-left">
+<span class="text-[9px] font-bold text-pink-400 uppercase tracking-widest block">Capitán Designado</span>
+<h4 id="hud-captain-name" class="text-md font-bold text-white">---</h4>
+</div>
+<div class="text-right">
+<span class="text-[9px] font-bold text-pink-400 uppercase tracking-widest block">Oferta Límite</span>
+<h4 id="hud-captain-bid" class="text-md font-extrabold text-white">0</h4>
+</div>
+</div>
+</div>
+
+<div class="lg:col-span-5 flex flex-col justify-between gap-6">
+<div class="bg-gray-900/80 border border-gray-800 rounded-3xl p-6 flex flex-col h-full">
+<h3 class="header-font text-lg font-bold text-white mb-2">Tu Panel de Mando</h3>
+<p class="text-xs text-gray-400 mb-4">Aquí ves todas las estimaciones y decides tu propio destino.</p>
+<div class="space-y-4 overflow-y-auto max-h-[400px] pr-2 flex-grow" id="decisions-grid"></div>
+</div>
+
+<button id="btn-launch-ship" class="hidden w-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-gray-950 font-black py-4 px-12 rounded-2xl text-xl hover:brightness-110 active:scale-95 transition-all shadow-lg uppercase tracking-wider">
+¡Despegar Nave!
+</button>
+</div>
+</div>
+</section>
+
+<!-- PANTALLA 4: ANIMACIÓN Y RESOLUCIÓN DE LA NAVE -->
+<section id="screen-reveal" class="hidden w-full space-y-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+<div class="lg:col-span-7 bg-gray-950 rounded-3xl border border-gray-800 p-6 flex flex-col justify-between items-center relative min-h-[420px] overflow-hidden" id="reveal-container-box">
+<div class="absolute inset-0 z-0 pointer-events-none" id="reveal-space-background"></div>
+<div class="relative z-10 w-full flex justify-between items-center bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur-sm">
+<span class="text-xs font-bold text-gray-400 uppercase tracking-widest"><i class="fa-solid fa-radar mr-2"></i> Estado de Trayectoria</span>
+<span id="flight-status-tag" class="text-xs font-black text-cyan-400 uppercase tracking-wider bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30 animate-pulse">Sincronizando...</span>
+</div>
+
+<div class="relative z-10 my-auto flex items-center justify-center float-anim" id="rocket-wrapper">
+<svg viewBox="0 0 100 150" class="w-40 h-60 transition-transform duration-1000" id="spaceship-svg">
+<path d="M20,110 L15,130 L30,125 Z" fill="#475569" stroke="#1E293B" stroke-width="2"/>
+<path d="M80,110 L85,130 L70,125 Z" fill="#475569" stroke="#1E293B" stroke-width="2"/>
+<g id="rocket-fire" class="opacity-0 transition-opacity duration-300">
+<path d="M40,115 L50,150 L60,115 Z" fill="#F43F5E" class="animate-pulse"/>
+<path d="M45,115 L50,135 L55,115 Z" fill="#F59E0B" class="animate-pulse"/>
+<path d="M16,130 L13,142 L22,130 Z" fill="#F59E0B" class="animate-pulse"/>
+<path d="M84,130 L87,142 L78,130 Z" fill="#F59E0B" class="animate-pulse"/>
+</g>
+<path d="M10,90 L30,105 L30,60 Z" fill="#0891B2" stroke="#0F172A" stroke-width="2"/>
+<path d="M90,90 L70,105 L70,60 Z" fill="#0891B2" stroke="#0F172A" stroke-width="2"/>
+<path d="M50,10 L30,50 L30,110 L70,110 L70,50 Z" fill="#F1F5F9" stroke="#0F172A" stroke-width="2"/>
+<path d="M50,10 L30,50 L70,50 Z" fill="#EC4899" stroke="#0F172A" stroke-width="2"/>
+<circle cx="50" cy="65" r="12" fill="#06B6D4" stroke="#0F172A" stroke-width="2"/>
+<path d="M42,61 Q50,56 58,61" stroke="#FFFFFF" stroke-width="1.5" fill="none"/>
+<rect x="47" y="90" width="6" height="12" rx="2" fill="#64748B"/>
+</svg>
+<div id="explosion-particle-container" class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible"></div>
+</div>
+
+<div class="relative z-10 w-full grid grid-cols-2 gap-4">
+<div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur-sm text-center">
+<span class="text-xs text-gray-500 font-bold block uppercase">Oferta del Capitán</span>
+<span id="reveal-captain-estimate" class="text-lg font-black text-pink-400">---</span>
+</div>
+<div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur-sm text-center">
+<span class="text-xs text-gray-500 font-bold block uppercase">Valor Real</span>
+<span id="reveal-actual-answer" class="text-lg font-black text-gray-400">---</span>
+</div>
+</div>
+</div>
+
+<div class="lg:col-span-5 bg-gray-900/80 border border-gray-800 rounded-3xl p-8 flex flex-col justify-between">
+<div>
+<h2 class="header-font text-2xl font-bold mb-1 text-white">Resultados de la Misión</h2>
+<p class="text-sm text-gray-400 mb-6" id="resolution-summary">Calculando el impacto en la tripulación...</p>
+<div class="space-y-3 mb-8" id="round-scores-list"></div>
+</div>
+
+<div class="space-y-3" id="result-buttons-wrapper">
+<button id="btn-next-round" class="hidden w-full bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-black py-4 px-8 rounded-xl text-lg shadow-lg active:scale-95 transition-all uppercase tracking-wider">
+Siguiente Pregunta <i class="fa-solid fa-arrow-right-long ml-2"></i>
+</button>
+<button id="btn-finish-mission" class="hidden w-full bg-gradient-to-r from-amber-500 to-pink-500 text-gray-950 font-black py-4 px-8 rounded-xl text-lg shadow-lg active:scale-95 transition-all uppercase tracking-wider">
+Finalizar Misión
+</button>
+<p id="waiting-host-msg" class="hidden text-center text-cyan-400 font-bold text-sm animate-pulse"><i class="fa-solid fa-satellite-dish mr-2"></i>Esperando al anfitrión...</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- PANTALLA 5: CLASIFICACIÓN FINAL / GAMEOVER -->
+<section id="screen-gameover" class="hidden w-full max-w-2xl mx-auto bg-gray-900/80 border border-gray-800 rounded-3xl p-8 text-center glow-cyan">
+<div class="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg text-gray-950">
+<i class="fa-solid fa-trophy"></i>
+</div>
+<h2 class="header-font text-4xl font-black mb-2 text-white">Misión Concluida</h2>
+<p class="text-sm text-gray-400 mb-8">Clasificación final de la tripulación en base a sus decisiones y audacia espacial.</p>
+<div class="space-y-3 mb-8" id="leaderboard-final-list"></div>
+<button id="btn-restart" class="hidden w-full bg-gradient-to-r from-cyan-500 to-pink-500 text-gray-950 font-black py-4 px-8 rounded-xl text-lg shadow-lg hover:brightness-110 active:scale-95 transition-all uppercase tracking-wider">
+Volver a Jugar
+</button>
+<p id="waiting-host-restart-msg" class="hidden text-center text-cyan-400 font-bold text-sm animate-pulse"><i class="fa-solid fa-satellite-dish mr-2"></i>Esperando a que el anfitrión reinicie la sala...</p>
+</section>
+
+</main>
+
+<div id="toast" class="fixed bottom-6 right-6 bg-gray-950 border border-gray-800 text-white font-semibold py-3 px-6 rounded-xl shadow-2xl translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 max-w-xs z-50">
+<i class="fa-solid fa-circle-info text-cyan-400"></i>
+<span id="toast-message">Notificación</span>
+</div>
+
+<div class="w-full max-w-6xl mx-auto py-3 px-6 text-center text-xs text-gray-500 border-t border-gray-950 flex justify-center gap-6 relative z-10 bg-gray-950/20 backdrop-blur-sm rounded-t-xl">
+<span><i class="fa-solid fa-rocket mr-1"></i> Capitán (máxima estimación): +3 o -3 puntos</span>
+<span><i class="fa-solid fa-user-astronaut mr-1"></i> Pasajeros a bordo: +1 o -1 punto</span>
+<span><i class="fa-solid fa-user-minus mr-1"></i> Eyectados: 0 si acierte, +1 si el Capitán se pasa</span>
+</div>
+
+<script type="module">
+// ==========================================================================
+// 1. INICIALIZACIÓN DE FIREBASE
+// ==========================================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-analytics.js";
+import { getDatabase, ref, push, onValue, set, remove, update, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCD2wJucsOwRYC0EFe6yTBRLLcOqaM4d0g",
+  authDomain: "sube-a-la-nave.firebaseapp.com",
+  databaseURL: "https://sube-a-la-nave-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "sube-a-la-nave",
+  storageBucket: "sube-a-la-nave.firebasestorage.app",
+  messagingSenderId: "763535366101",
+  appId: "1:763535366101:web:0674eca40c8f576c98cf5c",
+  measurementId: "G-8EEPNZLFLK"
+};
+
+const app = initializeApp(firebaseConfig);
+window.db = getDatabase(app);
+window.ref = ref;
+window.push = push;
+window.onValue = onValue;
+window.set = set;
+window.remove = remove;
+const analytics = getAnalytics(app);
+
+const playersRef = ref(window.db, 'sala_de_lanzamiento/jugadores');
+const partidaRef = ref(window.db, 'sala_de_lanzamiento/partida');
+const estimacionesRef = ref(window.db, 'sala_de_lanzamiento/estimaciones');
+
+// ==========================================================================
+// 2. CONFIGURACIÓN DE LA API DE GEMINI
+// ==========================================================================
+const GEMINI_API_KEY = "TU_API_KEY_AQUI"; // <-- PLACEHOLDER: sustituye por tu clave real
+const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+let usedTopicsHint = [];
+
+async function fetchQuestionFromAI() {
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === "TU_API_KEY_AQUI") {
+    throw new Error("API Key de Gemini no configurada.");
+  }
+  const evitar = usedTopicsHint.length ? `Evita repetir temas ya usados en esta partida: ${usedTopicsHint.join(", ")}.` : "";
+  const prompt = `Genera UNA pregunta de estimación numérica absurda e imposible de saber de memoria con precisión exacta, en español, sobre datos curiosos y reales del mundo (naturaleza, ciencia, geografía, historia, cuerpo humano, animales, espacio, etc). ${evitar}
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, con este formato EXACTO:
+{"q": "pregunta en español terminada en signo de interrogación", "a": numero_entero_de_la_respuesta_real, "u": "unidad en plural minúscula (ej: metros, litros, kg, años)", "topic": "palabra clave del tema", "detail": "una frase breve en español con el dato curioso o su fuente aproximada"}
+El campo "a" debe ser un número entero positivo, realista y verificable. No incluyas comas ni puntos como separadores de miles en el número.`;
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 1, responseMimeType: "application/json" }
+    })
+  });
+  if (!response.ok) throw new Error(`Error HTTP de la API de Gemini: ${response.status}`);
+  const data = await response.json();
+  const textOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!textOutput) throw new Error("La IA devolvió una respuesta vacía.");
+  const cleanText = textOutput.replace(/```json|```/g, "").trim();
+  const parsed = JSON.parse(cleanText);
+  if (!parsed.q || typeof parsed.a !== "number" || !parsed.u) throw new Error("Formato de pregunta inválido recibido de la IA.");
+  if (parsed.topic) usedTopicsHint.push(parsed.topic);
+  return { q: parsed.q, a: Math.round(parsed.a), u: parsed.u, detail: parsed.detail || "" };
+}
+
+async function getNextQuestion() {
+  try {
+    return await fetchQuestionFromAI();
+  } catch (err) {
+    console.warn("⚠️ No se pudo generar la pregunta con IA, usando pregunta de reserva:", err.message);
+    return QUESTIONS_BANK[Math.floor(Math.random() * QUESTIONS_BANK.length)];
+  }
+}
+
+// ==========================================================================
+// 3. BANCO DE PREGUNTAS DE RESERVA (PLAN B SI LA IA FALLA)
+// ==========================================================================
+const QUESTIONS_BANK = [
+{ q: "¿Cuántos granos de arena fina caben aproximadamente en un envase estándar de 1 litro?", a: 50000000, u: "granos", detail: "Aproximadamente 50 millones, dependiendo del nivel de finura." },
+{ q: "¿Cuántas veces cabe la superficie terrestre de España entera dentro de la superficie total de la Luna?", a: 75, u: "veces", detail: "La superficie lunar es de 37,9 millones de km², España tiene unos 505.990 km²." },
+{ q: "¿Cuántos litros de agua se estima que contiene el Lago Ness en Escocia?", a: 7400000000000, u: "litros", detail: "Tiene unos 7,4 kilómetros cúbicos de agua dulce." },
+{ q: "¿Cuántos kilogramos de peso medio tiene una nube de tormenta (cumulonimbo) típica?", a: 500000, u: "kg", detail: "Sorprendentemente, flotan unas 500 toneladas de agua condensada." },
+{ q: "¿Cuántas hamburguesas vende la cadena McDonald's en todo el mundo por cada segundo de tiempo?", a: 75, u: "hamburguesas", detail: "Aproximadamente 75 hamburguesas cada segundo que pasa." },
+{ q: "¿Cuántas hormigas vivas se calcula que existen en la Tierra por cada ser humano vivo?", a: 2500000, u: "hormigas", detail: "Se estima que hay unos 20 mil billones de hormigas vivas en total." },
+{ q: "¿Cuántos kilómetros de longitud total suman todos los vasos sanguíneos del cuerpo de un adulto humano?", a: 100000, u: "km", detail: "Suficiente para dar la vuelta al mundo aproximadamente 2.5 veces." },
+{ q: "¿Cuántos segundos tarda la luz emitida por el Sol en recorrer la distancia promedio hasta la Tierra?", a: 500, u: "segundos", detail: "O lo que es lo mismo, unos 8 minutos y 20 segundos de viaje cósmico." },
+{ q: "¿Cuántos dientes funcionales tiene en total un tiburón ballena adulto en su boca?", a: 3000, u: "dientes", detail: "Aunque no los usa para masticar ya que filtra plancton." },
+{ q: "¿Cuántas toneladas métricas pesa la icónica estructura metálica de la Torre Eiffel de París?", a: 10100, u: "toneladas", detail: "La estructura pura de metal pesa exactamente unas 7.300 toneladas." },
+{ q: "¿Cuántos días terrestres tarda el gélido planeta Neptuno en completar una sola vuelta al Sol?", a: 60190, u: "días", detail: "Esto equivale a unos 164.8 años de tiempo terrestre." },
+{ q: "¿Cuántos litros de saliva produce un ser humano promedio a lo largo de toda su vida?", a: 25000, u: "litros", detail: "Suficiente saliva acumulada como para llenar dos piscinas de mediano tamaño." },
+{ q: "¿Cuántas células componen aproximadamente el cuerpo de un adulto humano de 70 kg?", a: 30000000000000, u: "células", detail: "Aproximadamente 30 billones de células humanas, sin contar las bacterias." },
+{ q: "¿Cuántos metros de profundidad máxima alcanza la Fosa de las Marianas en el océano Pacífico?", a: 10994, u: "metros", detail: "El punto más profundo conocido, el Abismo de Challenger." },
+{ q: "¿Cuántos metros de caída libre tiene la cascada más alta del mundo (el Salto Ángel en Venezuela)?", a: 979, u: "metros", detail: "Una caída ininterrumpida impresionante de casi un kilómetro de altura." },
+{ q: "¿Cuántos años de trabajo continuo duró la construcción completa de la Gran Muralla China?", a: 2000, u: "años", detail: "Se construyó a través de diversas dinastías a lo largo de dos milenios." },
+{ q: "¿Cuántos pelos tiene de media un gato común por centímetro cuadrado de piel?", a: 20000, u: "pelos", detail: "Una densidad de pelaje increíble que los mantiene calientes." },
+{ q: "¿Cuántos litros de aire inhala y exhala un adulto sano promedio en reposo en un solo día?", a: 11000, u: "litros", detail: "Unas 11 toneladas de volumen de aire pasan por nuestros pulmones diariamente." }
+];
+
+// ==========================================================================
+// 4. SISTEMA DE AUDIO DIGITAL SINTÉTICO
+// ==========================================================================
+class SoundFX {
+constructor() { this.ctx = null; }
+init() {
+if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+if (this.ctx.state === 'suspended') this.ctx.resume();
+}
+click() {
+this.init();
+const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+osc.frequency.value = 1100;
+gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+osc.connect(gain); gain.connect(this.ctx.destination);
+osc.start(); osc.stop(this.ctx.currentTime + 0.05);
+}
+beep() {
+this.init();
+const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+osc.frequency.value = 587.33;
+gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+osc.connect(gain); gain.connect(this.ctx.destination);
+osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+}
+launch() {
+this.init();
+const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+osc.type = 'sawtooth';
+osc.frequency.setValueAtTime(70, this.ctx.currentTime);
+osc.frequency.exponentialRampToValueAtTime(950, this.ctx.currentTime + 2.5);
+gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 2.5);
+osc.connect(gain); gain.connect(this.ctx.destination);
+osc.start(); osc.stop(this.ctx.currentTime + 2.5);
+}
+ejectSound() {
+this.init();
+const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+osc.type = 'sine';
+osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.4);
+gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.45);
+osc.connect(gain); gain.connect(this.ctx.destination);
+osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+}
+explode() {
+this.init();
+const bufferSize = this.ctx.sampleRate * 1.5;
+const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+const data = buffer.getChannelData(0);
+for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+const filter = this.ctx.createBiquadFilter();
+filter.type = 'lowpass';
+filter.frequency.setValueAtTime(650, this.ctx.currentTime);
+filter.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 1.1);
+const gain = this.ctx.createGain();
+gain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.3);
+noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+noise.start();
+}
+}
+const sfx = new SoundFX();
+
+// ==========================================================================
+// 5. GENERADOR PROCEDIMENTAL DE AVATARES VECTORIALES
+// ==========================================================================
+function generateAvatarSVG(name, isDirty = false) {
+let hash = 0;
+for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+const colors = ['#06B6D4', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#14B8A6'];
+const skinColors = isDirty ? ['#453835', '#4d4644', '#3d3432'] : ['#FCA5A5', '#FCD34D', '#FDBA74', '#6EE7B7', '#93C5FD', '#F9A8D4'];
+const hColor = isDirty ? '#2D3748' : colors[Math.abs(hash) % colors.length];
+const vColor = colors[Math.abs(hash >> 2) % colors.length];
+const sColor = skinColors[Math.abs(hash >> 4) % skinColors.length];
+const antennaType = Math.abs(hash >> 6) % 3;
+let antennaSvg = '';
+if (antennaType === 0) {
+antennaSvg = `<line x1="20" y1="8" x2="20" y2="2" stroke="${hColor}" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="1" r="2.5" fill="#EF4444" class="animate-pulse"/>`;
+} else if (antennaType === 1) {
+antennaSvg = `<path d="M5,12 L2,15 L5,18 Z" fill="${hColor}"/><path d="M35,12 L38,15 L35,18 Z" fill="${hColor}"/>`;
+} else {
+antennaSvg = `<path d="M16,5 Q20,1 24,5 L20,10 Z" fill="${hColor}"/>`;
+}
+const dirtOverlay = isDirty ? `<circle cx="20" cy="20" r="7.5" fill="black" opacity="0.45"/><circle cx="15" cy="15" r="2" fill="black" opacity="0.5"/><circle cx="25" cy="23" r="1.5" fill="black" opacity="0.5"/>` : '';
+return `
+<svg viewBox="0 0 40 40" class="w-12 h-12 drop-shadow-md">
+<circle cx="20" cy="20" r="18" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+${antennaSvg}
+<path d="M8,36 Q20,28 32,36" fill="#1E293B" stroke="${hColor}" stroke-width="2"/>
+<path d="M12,33 L28,33" stroke="#F43F5E" stroke-width="1.5"/>
+<circle cx="20" cy="20" r="11" fill="${hColor}" stroke="#0F172A" stroke-width="1.5"/>
+<circle cx="20" cy="20" r="8" fill="${sColor}"/>
+${dirtOverlay}
+<circle cx="17.5" cy="19.5" r="1.2" fill="#000000"/>
+<circle cx="22.5" cy="19.5" r="1.2" fill="#000000"/>
+<path d="M18,22 Q20,24 22,22" stroke="#000000" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+<path d="M11.5,20 C11.5,15.5 28.5,15.5 28.5,20 C28.5,24.5 11.5,24.5 11.5,20 Z" fill="${vColor}" opacity="0.6"/>
+<path d="M13,18 Q20,14 27,18" stroke="#FFFFFF" stroke-width="1" fill="none" opacity="0.7"/>
+</svg>`;
+}
+
+function generateStarfield() {
+const container = document.getElementById('starfield');
+container.innerHTML = '';
+for (let i = 0; i < 70; i++) {
+const star = document.createElement('div');
+star.className = 'absolute bg-white rounded-full star';
+const size = Math.random() * 2.5 + 0.5;
+star.style.width = `${size}px`; star.style.height = `${size}px`;
+star.style.left = `${Math.random() * 100}%`; star.style.top = `${Math.random() * 100}%`;
+star.style.animationDelay = `${Math.random() * 2}s`;
+container.appendChild(star);
+}
+}
+
+// ==========================================================================
+// 6. ESTADO DEL JUEGO (SINCRONIZADO POR FIREBASE)
+// ==========================================================================
+let players = [];              // [{id, name, score, isCaptain, isAboard}]
+let partida = null;            // {fase, hostId, rondaActual, pregunta, capitanId, capitanGuess}
+let estimaciones = {};         // {ronda: {playerId: numero}}
+let myPlayerId = sessionStorage.getItem('nave_mi_id') || null;
+const totalRondas = 5;
+
+let playersLoaded = false, partidaLoaded = false, estimacionesLoaded = false;
+let advancingToCaptain = false;
+let seenRoundsForBaseline = new Set();
+let baselineScores = {};
+let lastAnimatedKey = '';
+
+function maybeRenderApp() {
+  if (playersLoaded && partidaLoaded && estimacionesLoaded) renderApp();
+}
+
+onValue(playersRef, (snapshot) => {
+  players = [];
+  snapshot.forEach((child) => players.push({ id: child.key, ...child.val() }));
+  playersLoaded = true;
+  updateRankingUI();
+  maybeRenderApp();
+});
+
+onValue(partidaRef, (snapshot) => {
+  partida = snapshot.val();
+  partidaLoaded = true;
+  maybeRenderApp();
+});
+
+onValue(estimacionesRef, (snapshot) => {
+  estimaciones = snapshot.val() || {};
+  estimacionesLoaded = true;
+  maybeRenderApp();
+});
+
+// En móvil, cambiar de app (ej. a WhatsApp para compartir el link) y volver puede
+// dejar la conexión en tiempo real "dormida" sin que se refresque sola.
+// Forzamos una relectura fresca de todo en cuanto la pestaña vuelve a estar visible.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  Promise.all([
+    get(playersRef).then((snap) => {
+      players = [];
+      snap.forEach((child) => players.push({ id: child.key, ...child.val() }));
+      playersLoaded = true;
+    }).catch(() => {}),
+    get(partidaRef).then((snap) => {
+      partida = snap.val();
+      partidaLoaded = true;
+    }).catch(() => {}),
+    get(estimacionesRef).then((snap) => {
+      estimaciones = snap.val() || {};
+      estimacionesLoaded = true;
+    }).catch(() => {})
+  ]).then(() => {
+    updateRankingUI();
+    maybeRenderApp();
+  });
+});
+
+// ==========================================================================
+// 7. RANKING SIDEBAR
+// ==========================================================================
+const rSidebar = document.getElementById('ranking-sidebar');
+document.getElementById('btn-toggle-ranking').addEventListener('click', () => {
+sfx.beep(); updateRankingUI(); rSidebar.classList.remove('translate-x-full');
+});
+document.getElementById('btn-close-ranking').addEventListener('click', () => {
+sfx.click(); rSidebar.classList.add('translate-x-full');
+});
+function updateRankingUI() {
+const sidebarList = document.getElementById('sidebar-ranking-list');
+if (players.length === 0) {
+sidebarList.innerHTML = `<p class="text-center text-gray-500 italic py-4">Añade jugadores para ver el ranking.</p>`;
+return;
+}
+const sorted = [...players].sort((a, b) => (b.score||0) - (a.score||0));
+sidebarList.innerHTML = '';
+sorted.forEach((p, idx) => {
+const item = document.createElement('div');
+item.className = 'flex items-center justify-between bg-gray-900 border border-gray-800 p-3 rounded-xl';
+item.innerHTML = `
+<div class="flex items-center gap-3">
+<span class="text-xs font-bold text-gray-400">#${idx+1}</span>
+<div>${generateAvatarSVG(p.name)}</div>
+<span class="text-sm font-semibold text-white truncate max-w-[120px]">${p.name}</span>
+</div>
+<span class="text-lg font-black text-cyan-400">${p.score||0} pts</span>`;
+sidebarList.appendChild(item);
+});
+}
+
+// ==========================================================================
+// 8. TOAST Y TRANSICIONES
+// ==========================================================================
+function showToast(message) {
+const toast = document.getElementById('toast');
+const msg = document.getElementById('toast-message');
+msg.textContent = message;
+toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 2500);
+}
+function switchScreen(screenId) {
+['screen-setup','screen-guesses','screen-decisions','screen-reveal','screen-gameover'].forEach(id => document.getElementById(id).classList.add('hidden'));
+document.getElementById(screenId).classList.remove('hidden');
+}
+
+// ==========================================================================
+// 9. PANTALLA: UNIRSE A LA TRIPULACIÓN
+// ==========================================================================
+function renderJoinScreen() {
+switchScreen('screen-setup');
+document.getElementById('round-indicator').textContent = 'Únete a la tripulación';
+const container = document.getElementById('setup-dynamic-content');
+container.innerHTML = `
+<h2 class="header-font text-3xl font-extrabold mb-2 text-center text-white">¿Cuál es tu nombre de astronauta?</h2>
+<p class="text-sm text-gray-400 text-center mb-8">Este dispositivo será tu mando personal durante toda la misión.</p>
+<div class="flex gap-3">
+<input type="text" id="player-name-input" maxlength="15" placeholder="Nombre del astronauta..." class="flex-grow bg-gray-950 border border-gray-800 focus:border-cyan-500 rounded-xl px-5 py-4 text-white placeholder-gray-600 outline-none transition-all text-lg">
+<button id="btn-join-crew" class="bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-extrabold px-8 py-4 rounded-xl active:scale-95 transition-all text-lg flex items-center gap-2">
+<i class="fa-solid fa-rocket"></i> Unirme
+</button>
+</div>`;
+container.innerHTML += `
+<button id="btn-reset-room" class="mt-6 w-full text-center text-xs text-gray-600 hover:text-red-400 transition-colors">
+<i class="fa-solid fa-trash-can mr-1"></i> ¿Problemas para unirte? Reiniciar sala (borra a todos los jugadores)
+</button>
+<p class="mt-4 text-center text-[10px] text-gray-700">DB conectada: ${firebaseConfig.projectId}</p>`;
+
+const input = document.getElementById('player-name-input');
+document.getElementById('btn-join-crew').addEventListener('click', joinCrew);
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinCrew(); });
+document.getElementById('btn-reset-room').addEventListener('click', resetRoomFromJoin);
+input.focus();
+}
+
+async function joinCrew() {
+const input = document.getElementById('player-name-input');
+const btn = document.getElementById('btn-join-crew');
+const name = input.value.trim();
+if (!name) return;
+if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+showToast('Ese nombre ya está en uso, prueba otro o reinicia la sala.');
+return;
+}
+sfx.beep();
+btn.disabled = true;
+btn.classList.add('opacity-50', 'pointer-events-none');
+try {
+const newRef = push(playersRef);
+await set(newRef, { name, score: 0, isCaptain: false, isAboard: true });
+myPlayerId = newRef.key;
+sessionStorage.setItem('nave_mi_id', myPlayerId);
+
+const partidaSnap = await get(partidaRef);
+if (!partidaSnap.exists() || !partidaSnap.val().hostId) {
+await set(partidaRef, { fase: 'lobby', hostId: myPlayerId, rondaActual: -1 });
+}
+// Forzamos el cambio de pantalla ya mismo, sin esperar a que llegue
+// el siguiente evento de Firebase (evita quedarse "pillado" en el formulario).
+if (!players.find(p => p.id === myPlayerId)) {
+players.push({ id: myPlayerId, name, score: 0, isCaptain: false, isAboard: true });
+}
+renderApp();
+} catch (err) {
+console.error(err);
+showToast('No se pudo conectar. Comprueba tu conexión e inténtalo de nuevo.');
+btn.disabled = false;
+btn.classList.remove('opacity-50', 'pointer-events-none');
+}
+}
+
+async function resetRoomFromJoin() {
+if (!confirm('Esto borrará a TODOS los jugadores conectados y la partida en curso para empezar de cero. ¿Continuar?')) return;
+sfx.click();
+try {
+await remove(ref(window.db, 'sala_de_lanzamiento'));
+sessionStorage.removeItem('nave_mi_id');
+myPlayerId = null;
+showToast('Sala reiniciada. Ya puedes unirte con tu nombre.');
+} catch (err) {
+console.error(err);
+showToast('No se pudo reiniciar la sala. Inténtalo de nuevo.');
+}
+}
+
+// ==========================================================================
+// 10. PANTALLA: SALA DE ESPERA (LOBBY)
+// ==========================================================================
+function renderLobbyScreen() {
+switchScreen('screen-setup');
+document.getElementById('round-indicator').textContent = 'Sala de espera';
+const isHost = partida.hostId === myPlayerId;
+const container = document.getElementById('setup-dynamic-content');
+const rosterHtml = players.map(p => `
+<div class="flex items-center gap-4 bg-gray-950/60 border border-gray-800 p-3 rounded-2xl">
+<div class="bg-gray-900 rounded-full">${generateAvatarSVG(p.name)}</div>
+<h4 class="text-lg font-bold text-white">${p.name}${p.id === partida.hostId ? ' <span class="text-[10px] text-amber-400 font-bold uppercase align-middle">(Anfitrión)</span>' : ''}</h4>
+</div>`).join('');
+container.innerHTML = `
+<h2 class="header-font text-3xl font-extrabold mb-2 text-center text-white">Sala de Espera</h2>
+<p class="text-sm text-gray-400 text-center mb-2">${isHost ? 'Espera a tu tripulación (mínimo 2) y pulsa Empezar cuando estéis listos.' : 'Esperando a que el anfitrión inicie la misión...'}</p>
+<p class="text-xs text-cyan-400 text-center font-bold mb-6">${players.length} astronauta${players.length === 1 ? '' : 's'} conectado${players.length === 1 ? '' : 's'}</p>
+<div class="space-y-3 max-h-64 overflow-y-auto mb-6 pr-2">${rosterHtml}</div>
+${isHost
+  ? `<button id="btn-start-game" class="w-full bg-gradient-to-r from-cyan-500 to-pink-500 text-gray-950 font-black py-4 px-8 rounded-xl text-xl shadow-lg hover:brightness-110 active:scale-95 transition-all uppercase tracking-wider ${players.length < 2 ? 'opacity-40 pointer-events-none' : ''}">¡Empezar Misión!</button>`
+  : `<div class="text-center text-cyan-400 font-bold animate-pulse"><i class="fa-solid fa-satellite-dish mr-2"></i>En espera...</div>`}
+<button id="btn-refresh-lobby" class="mt-4 w-full text-center text-xs text-gray-600 hover:text-cyan-400 transition-colors">
+<i class="fa-solid fa-rotate mr-1"></i> ¿No ves a todos? Actualizar lista
+</button>
+<p class="mt-3 text-center text-[10px] text-gray-700">DB conectada: ${firebaseConfig.projectId}</p>
+`;
+if (isHost) document.getElementById('btn-start-game').addEventListener('click', hostStartGame);
+document.getElementById('btn-refresh-lobby').addEventListener('click', async () => {
+sfx.click();
+const snap = await get(playersRef);
+players = [];
+snap.forEach((child) => players.push({ id: child.key, ...child.val() }));
+const partidaSnap = await get(partidaRef);
+partida = partidaSnap.val();
+updateRankingUI();
+renderApp();
+});
+}
+
+async function hostStartGame() {
+sfx.launch();
+usedTopicsHint = [];
+const updates = {};
+players.forEach(p => {
+updates[`sala_de_lanzamiento/jugadores/${p.id}/isCaptain`] = false;
+updates[`sala_de_lanzamiento/jugadores/${p.id}/isAboard`] = true;
+});
+await update(ref(window.db), updates);
+await remove(estimacionesRef);
+await set(partidaRef, { fase: 'cargando', hostId: partida.hostId, rondaActual: 0, capitanId: null });
+const q = await getNextQuestion();
+await update(partidaRef, { fase: 'adivinando', pregunta: q });
+}
+
+// ==========================================================================
+// 11. PANTALLA: CARGANDO PREGUNTA
+// ==========================================================================
+function renderLoadingScreen() {
+switchScreen('screen-guesses');
+if (!seenRoundsForBaseline.has(partida.rondaActual)) {
+seenRoundsForBaseline.add(partida.rondaActual);
+baselineScores = {};
+players.forEach(p => baselineScores[p.id] = p.score || 0);
+}
+document.getElementById('round-indicator').textContent = `Misión: Ronda ${partida.rondaActual + 1} de ${totalRondas}`;
+document.getElementById('current-question').innerHTML = `<span class="inline-flex items-center gap-3 text-cyan-400"><i class="fa-solid fa-circle-notch animate-spin"></i> Generando pregunta imposible con IA...</span>`;
+document.getElementById('guesses-grid').innerHTML = '';
+}
+
+// ==========================================================================
+// 12. PANTALLA: TU ESTIMACIÓN (SOLO LA TUYA)
+// ==========================================================================
+function renderGuessScreen() {
+switchScreen('screen-guesses');
+document.getElementById('round-indicator').textContent = `Misión: Ronda ${partida.rondaActual + 1} de ${totalRondas}`;
+document.getElementById('current-question').textContent = partida.pregunta.q;
+
+const ronda = partida.rondaActual;
+const rondaGuesses = estimaciones[ronda] || {};
+const totalConfirmados = Object.keys(rondaGuesses).length;
+const yaConfirme = rondaGuesses[myPlayerId] !== undefined;
+const me = players.find(p => p.id === myPlayerId);
+if (!me) return;
+
+const grid = document.getElementById('guesses-grid');
+grid.innerHTML = '';
+const card = document.createElement('div');
+card.className = 'bg-gray-900/60 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between items-center text-center gap-4 relative overflow-hidden max-w-sm mx-auto w-full';
+
+if (yaConfirme) {
+card.innerHTML = `
+<div class="bg-gray-950/80 p-2 rounded-xl border border-gray-800">${generateAvatarSVG(me.name)}</div>
+<h4 class="text-lg font-bold text-white">${me.name}</h4>
+<div class="w-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-bold py-3.5 rounded-xl">✓ Estimación Fijada</div>
+<p class="text-xs text-gray-400">Esperando a la tripulación... <span class="text-cyan-400 font-bold">${totalConfirmados}/${players.length}</span></p>`;
+} else {
+card.innerHTML = `
+<div class="bg-gray-950/80 p-2 rounded-xl border border-gray-800">${generateAvatarSVG(me.name)}</div>
+<h4 class="text-lg font-bold text-white">${me.name}</h4>
+<div class="w-full space-y-2 mt-2">
+<label class="text-xs text-cyan-400 font-bold uppercase tracking-widest block">Tu Estimación</label>
+<div class="flex gap-2">
+<input type="password" id="guess-input" placeholder="0" class="w-full bg-gray-950 border border-gray-800 focus:border-cyan-500 rounded-xl px-4 py-3 text-center text-white text-lg font-black outline-none tracking-widest">
+<button id="toggle-guess-visibility" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3.5 rounded-xl text-md"><i class="fa-solid fa-eye"></i></button>
+</div>
+</div>
+<button id="btn-confirm-guess" class="w-full bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-bold py-3.5 rounded-xl transition-all">Confirmar Cifra</button>
+<p class="text-xs text-gray-500">${totalConfirmados}/${players.length} tripulantes ya han confirmado</p>`;
+}
+grid.appendChild(card);
+
+if (!yaConfirme) {
+document.getElementById('toggle-guess-visibility').addEventListener('click', () => {
+sfx.click();
+const inp = document.getElementById('guess-input');
+const btn = document.getElementById('toggle-guess-visibility');
+if (inp.type === 'password') { inp.type = 'text'; btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>'; }
+else { inp.type = 'password'; btn.innerHTML = '<i class="fa-solid fa-eye"></i>'; }
+});
+document.getElementById('btn-confirm-guess').addEventListener('click', confirmMyGuess);
+}
+
+if (partida.hostId === myPlayerId && players.length > 0 && totalConfirmados === players.length) {
+hostAdvanceToCaptainPhase();
+}
+}
+
+async function confirmMyGuess() {
+const inp = document.getElementById('guess-input');
+const val = parseFloat(inp.value);
+if (isNaN(val) || val <= 0) { showToast('Introduce una estimación numérica válida.'); return; }
+sfx.beep();
+await set(ref(window.db, `sala_de_lanzamiento/estimaciones/${partida.rondaActual}/${myPlayerId}`), val);
+}
+
+async function hostAdvanceToCaptainPhase() {
+if (advancingToCaptain) return;
+advancingToCaptain = true;
+const ronda = partida.rondaActual;
+const guesses = estimaciones[ronda] || {};
+let captainId = null, maxGuess = -1;
+players.forEach(p => {
+const g = guesses[p.id];
+if (g !== undefined && g > maxGuess) { maxGuess = g; captainId = p.id; }
+});
+const updates = {};
+players.forEach(p => { updates[`sala_de_lanzamiento/jugadores/${p.id}/isCaptain`] = (p.id === captainId); });
+await update(ref(window.db), updates);
+await update(partidaRef, { fase: 'capitan', capitanId, capitanGuess: maxGuess });
+advancingToCaptain = false;
+}
+
+// ==========================================================================
+// 13. PANTALLA: CAPITÁN REVELADO + DECISIONES PROPIAS
+// ==========================================================================
+function renderCaptainAndDecisions() {
+switchScreen('screen-decisions');
+document.getElementById('round-indicator').textContent = `Misión: Ronda ${partida.rondaActual + 1} de ${totalRondas}`;
+const questionData = partida.pregunta;
+const captain = players.find(p => p.id === partida.capitanId);
+if (!captain) return;
+
+document.getElementById('hud-captain-name').textContent = captain.name;
+document.getElementById('hud-captain-bid').innerHTML = `${partida.capitanGuess.toLocaleString('es-ES')} <span class="text-xs text-pink-400 font-bold">${questionData.u}</span>`;
+
+const capSpot = document.getElementById('cabin-captain-spot');
+capSpot.innerHTML = `<div class="scale-110 relative flex flex-col items-center">${generateAvatarSVG(captain.name)}<span class="absolute bottom-[-10px] bg-pink-500 text-gray-950 font-extrabold text-[8px] px-1.5 py-0.5 rounded-full border border-pink-400/30 shadow-lg tracking-wide">CAPITÁN</span></div>`;
+
+const passGrid = document.getElementById('cabin-passengers-grid');
+const earthZone = document.getElementById('cabin-earth-zone');
+passGrid.innerHTML = ''; earthZone.innerHTML = '';
+players.filter(p => p.id !== captain.id).forEach(p => {
+const seat = document.createElement('div');
+seat.className = 'flex flex-col items-center justify-center relative p-1';
+const parachuteHtml = !p.isAboard ? `<div class="absolute top-[-26px] scale-75"><svg viewBox="0 0 40 40" class="w-10 h-10"><path d="M5,20 C5,8 35,8 35,20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2,2"/><path d="M10,20 Q20,15 30,20" fill="none" stroke="#EF4444" stroke-width="2"/><path d="M5,20 L15,35" stroke="#FFFFFF" stroke-width="1"/><path d="M35,20 L25,35" stroke="#FFFFFF" stroke-width="1"/><circle cx="20" cy="12" r="5" fill="#EF4444" opacity="0.8"/></svg></div>` : '';
+seat.innerHTML = `<div class="relative flex flex-col items-center">${parachuteHtml}<div class="scale-90 ${!p.isAboard ? 'opacity-80 rotate-12' : ''}">${generateAvatarSVG(p.name)}</div><span class="text-[8px] font-bold text-gray-400 mt-1 truncate max-w-[50px]">${p.name}</span></div>`;
+(p.isAboard ? passGrid : earthZone).appendChild(seat);
+});
+
+const ronda = partida.rondaActual;
+const guesses = estimaciones[ronda] || {};
+const guessesListHtml = players.map(p => `
+<div class="flex items-center justify-between bg-gray-950/40 border border-gray-800 p-2.5 rounded-xl">
+<div class="flex items-center gap-2"><div class="scale-75">${generateAvatarSVG(p.name)}</div><span class="text-xs font-bold text-white">${p.name}${p.id === captain.id ? ' <span class="text-pink-400">(Capitán)</span>' : ''}</span></div>
+<span class="text-sm font-black text-cyan-400">${(guesses[p.id] || 0).toLocaleString('es-ES')}</span>
+</div>`).join('');
+
+const me = players.find(p => p.id === myPlayerId);
+const isCaptainMe = me && me.id === captain.id;
+const isHost = partida.hostId === myPlayerId;
+
+const decGrid = document.getElementById('decisions-grid');
+decGrid.innerHTML = `
+<div>
+<h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Estimaciones Reveladas</h4>
+<div class="space-y-2">${guessesListHtml}</div>
+</div>
+<div class="pt-4 border-t border-gray-850">
+${isCaptainMe
+  ? `<p class="text-center text-pink-400 font-bold text-sm"><i class="fa-solid fa-user-astronaut mr-2"></i>Eres el Capitán. Espera a que la tripulación decida.</p>`
+  : `<p class="text-xs text-gray-400 mb-3 text-center">¿Te subes a la nave o te eyectas?</p>
+     <div class="grid grid-cols-2 gap-2.5">
+     <button id="btn-board-me" class="py-2.5 px-3 rounded-xl font-bold ${me.isAboard ? 'bg-emerald-500 text-gray-950' : 'bg-gray-800 text-gray-400 border border-gray-700'} active:scale-95 transition-all text-[11px] uppercase"><i class="fa-solid fa-check-double mr-1"></i> A Bordo</button>
+     <button id="btn-eject-me" class="py-2.5 px-3 rounded-xl font-bold ${!me.isAboard ? 'bg-red-500 text-gray-950' : 'bg-gray-800 text-gray-400 border border-gray-700'} active:scale-95 transition-all text-[11px] uppercase"><i class="fa-solid fa-circle-radiation mr-1"></i> EJECT</button>
+     </div>`}
+</div>`;
+
+if (!isCaptainMe) {
+document.getElementById('btn-board-me').addEventListener('click', () => setMyBoarding(true));
+document.getElementById('btn-eject-me').addEventListener('click', () => setMyBoarding(false));
+}
+
+const launchBtn = document.getElementById('btn-launch-ship');
+if (isHost) {
+launchBtn.classList.remove('hidden');
+launchBtn.onclick = hostLaunchShip;
+} else {
+launchBtn.classList.add('hidden');
+}
+}
+
+async function setMyBoarding(status) {
+sfx.click();
+if (status) sfx.beep(); else sfx.ejectSound();
+await update(ref(window.db, `sala_de_lanzamiento/jugadores/${myPlayerId}`), { isAboard: status });
+}
+
+async function hostLaunchShip() {
+sfx.launch();
+const questionData = partida.pregunta;
+const isSuccess = questionData.a >= partida.capitanGuess;
+const updates = {};
+players.forEach(p => {
+let diff = 0;
+if (p.id === partida.capitanId) diff = isSuccess ? 3 : -3;
+else if (p.isAboard) diff = isSuccess ? 1 : -1;
+else diff = isSuccess ? 0 : 1;
+updates[`sala_de_lanzamiento/jugadores/${p.id}/score`] = Math.max(0, (p.score || 0) + diff);
+});
+await update(ref(window.db), updates);
+await update(partidaRef, { fase: 'resultado' });
+}
+
+// ==========================================================================
+// 14. PANTALLA: RESOLUCIÓN Y ANIMACIÓN
+// ==========================================================================
+function renderResultScreen() {
+switchScreen('screen-reveal');
+document.getElementById('round-indicator').textContent = `Misión: Ronda ${partida.rondaActual + 1} de ${totalRondas}`;
+const key = 'resultado-' + partida.rondaActual;
+if (lastAnimatedKey !== key) {
+lastAnimatedKey = key;
+triggerSpaceshipManeuver();
+}
+updateResultButtons();
+}
+
+function updateResultButtons() {
+const isHost = partida.hostId === myPlayerId;
+const btnNext = document.getElementById('btn-next-round');
+const btnFinish = document.getElementById('btn-finish-mission');
+const waitingMsg = document.getElementById('waiting-host-msg');
+const esUltimaRonda = partida.rondaActual + 1 >= totalRondas;
+
+if (!isHost) {
+btnNext.classList.add('hidden'); btnFinish.classList.add('hidden');
+waitingMsg.classList.remove('hidden');
+return;
+}
+waitingMsg.classList.add('hidden');
+if (esUltimaRonda) { btnNext.classList.add('hidden'); btnFinish.classList.remove('hidden'); }
+else { btnNext.classList.remove('hidden'); btnFinish.classList.add('hidden'); }
+btnNext.onclick = hostNextRound;
+btnFinish.onclick = hostFinishMission;
+}
+
+function triggerSpaceshipManeuver() {
+const questionData = partida.pregunta;
+const realAnswer = questionData.a;
+const capGuess = partida.capitanGuess;
+const isSuccess = realAnswer >= capGuess;
+const playersSnapshot = players.map(p => ({ ...p }));
+
+document.getElementById('reveal-captain-estimate').textContent = `${capGuess.toLocaleString('es-ES')} ${questionData.u}`;
+document.getElementById('reveal-actual-answer').textContent = "Calculando...";
+document.getElementById('flight-status-tag').textContent = "Encendiendo propulsores";
+document.getElementById('flight-status-tag').className = "text-xs font-black text-amber-400 uppercase tracking-wider bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30 animate-pulse";
+
+const rocket = document.getElementById('spaceship-svg');
+const fire = document.getElementById('rocket-fire');
+const particleContainer = document.getElementById('explosion-particle-container');
+const containerBox = document.getElementById('reveal-container-box');
+rocket.className = "w-40 h-60 transition-transform duration-1000";
+rocket.style.transform = "translateY(0px)"; rocket.style.opacity = "1";
+fire.classList.add('opacity-0');
+particleContainer.innerHTML = '';
+containerBox.classList.remove('alarm-active');
+
+generateSpaceTravelStars();
+
+setTimeout(() => {
+sfx.launch();
+rocket.classList.add('shake-anim');
+fire.classList.remove('opacity-0');
+containerBox.classList.add('alarm-active');
+document.getElementById('flight-status-tag').textContent = "Vuelo en curso";
+document.getElementById('flight-status-tag').className = "text-xs font-black text-cyan-400 uppercase tracking-wider bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30 animate-pulse";
+}, 800);
+
+setTimeout(() => {
+let currentVal = 0;
+const duration = 1800, steps = 30;
+const increment = realAnswer / steps;
+let stepCount = 0;
+const timer = setInterval(() => {
+currentVal += increment; stepCount++;
+if (stepCount >= steps) {
+clearInterval(timer);
+document.getElementById('reveal-actual-answer').textContent = `${realAnswer.toLocaleString('es-ES')} ${questionData.u}`;
+executeOutcomeAnimation(isSuccess, realAnswer, capGuess, questionData, playersSnapshot);
+} else {
+document.getElementById('reveal-actual-answer').textContent = `${Math.floor(currentVal).toLocaleString('es-ES')} ${questionData.u}`;
+}
+}, duration / steps);
+}, 2000);
+}
+
+function generateSpaceTravelStars() {
+const container = document.getElementById('reveal-space-background');
+container.innerHTML = '';
+for (let i = 0; i < 30; i++) {
+const line = document.createElement('div');
+line.className = 'absolute bg-cyan-500/30 rounded';
+line.style.width = '2px';
+line.style.height = `${Math.random() * 40 + 20}px`;
+line.style.left = `${Math.random() * 100}%`;
+line.style.top = `-${Math.random() * 50}%`;
+line.style.transition = 'transform 2s linear';
+container.appendChild(line);
+setTimeout(() => { line.style.transform = `translateY(${window.innerHeight + 100}px)`; }, 50);
+}
+}
+
+function executeOutcomeAnimation(isSuccess, real, bid, questionData, playersSnapshot) {
+const rocket = document.getElementById('spaceship-svg');
+const fire = document.getElementById('rocket-fire');
+const statusTag = document.getElementById('flight-status-tag');
+const particleContainer = document.getElementById('explosion-particle-container');
+const containerBox = document.getElementById('reveal-container-box');
+rocket.classList.remove('shake-anim');
+containerBox.classList.remove('alarm-active');
+
+if (isSuccess) {
+sfx.beep();
+statusTag.textContent = "Trayectoria Estable";
+statusTag.className = "text-xs font-black text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30";
+rocket.style.transition = "transform 1.5s cubic-bezier(0.25, 1, 0.50, 1)";
+rocket.style.transform = "translateY(-800px) scale(0.6)";
+document.getElementById('resolution-summary').innerHTML = `
+<span class="text-emerald-400 font-extrabold block text-lg uppercase mb-1">¡VUELO EXITOSO!</span>
+El Capitán no se ha pasado (Real: ${real.toLocaleString('es-ES')} &ge; Oferta: ${bid.toLocaleString('es-ES')}).<br>
+<span class="text-xs text-gray-400 mt-2 block">${questionData.detail}</span>`;
+} else {
+sfx.explode();
+statusTag.textContent = "Siniestro Total";
+statusTag.className = "text-xs font-black text-red-500 uppercase tracking-wider bg-red-500/10 px-3 py-1 rounded-full border border-red-500/30 animate-pulse";
+rocket.style.transition = "opacity 0.1s"; rocket.style.opacity = "0";
+fire.classList.add('opacity-0');
+for (let i = 0; i < 40; i++) {
+const particle = document.createElement('div');
+particle.className = 'absolute rounded-full transition-transform duration-1000 ease-out pointer-events-none';
+const size = Math.random() * 12 + 4;
+particle.style.width = `${size}px`; particle.style.height = `${size}px`;
+const colors = ['#EF4444', '#F97316', '#F59E0B', '#F43F5E', '#FFFFFF'];
+particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+particleContainer.appendChild(particle);
+const angle = Math.random() * Math.PI * 2;
+const velocity = Math.random() * 180 + 40;
+const tx = Math.cos(angle) * velocity, ty = Math.sin(angle) * velocity;
+setTimeout(() => { particle.style.transform = `translate(${tx}px, ${ty}px) scale(0)`; }, 50);
+}
+document.getElementById('resolution-summary').innerHTML = `
+<span class="text-red-500 font-extrabold block text-lg uppercase mb-1">¡LA NAVE HA ESTALLADO!</span>
+El Capitán se ha pasado de la cifra real (Real: ${real.toLocaleString('es-ES')} < Oferta: ${bid.toLocaleString('es-ES')}).<br>
+<span class="text-xs text-gray-400 mt-2 block">${questionData.detail}</span>`;
+}
+
+renderRoundScoresList(isSuccess, playersSnapshot);
+updateRankingUI();
+}
+
+function renderRoundScoresList(isSuccess, playersSnapshot) {
+const listContainer = document.getElementById('round-scores-list');
+listContainer.innerHTML = '';
+playersSnapshot.forEach(p => {
+let scoreDiff = 0, statusMsg = "", styleColor = "", showDirtyAvatar = false;
+if (p.id === partida.capitanId) {
+if (isSuccess) { scoreDiff = 3; statusMsg = "Capitán Exitoso"; styleColor = "text-emerald-400"; }
+else { scoreDiff = -3; statusMsg = "Capitán Derrotado (Exceso)"; styleColor = "text-red-400"; showDirtyAvatar = true; }
+} else if (p.isAboard) {
+if (isSuccess) { scoreDiff = 1; statusMsg = "A Bordo (Acertó)"; styleColor = "text-emerald-400"; }
+else { scoreDiff = -1; statusMsg = "A Bordo (Exceso)"; styleColor = "text-red-400"; showDirtyAvatar = true; }
+} else {
+if (isSuccess) { scoreDiff = 0; statusMsg = "Eyectado (Tierra)"; styleColor = "text-gray-400"; }
+else { scoreDiff = 1; statusMsg = "Eyectado (¡Salvado!)"; styleColor = "text-amber-400"; }
+}
+const nuevoTotal = Math.max(0, (baselineScores[p.id] ?? p.score ?? 0) + scoreDiff);
+const row = document.createElement('div');
+row.className = 'flex items-center justify-between bg-gray-950/40 border border-gray-800 p-3 rounded-2xl';
+row.innerHTML = `
+<div class="flex items-center gap-3">
+<div class="bg-gray-900 rounded-full scale-75 origin-left">${generateAvatarSVG(p.name, showDirtyAvatar)}</div>
+<div><h4 class="text-sm font-bold text-white">${p.name}</h4><span class="text-xs font-semibold ${styleColor}">${statusMsg}</span></div>
+</div>
+<div class="text-right">
+<span class="text-md font-bold block ${scoreDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}">${scoreDiff >= 0 ? '+' + scoreDiff : scoreDiff} PTS</span>
+<span class="text-xs text-gray-500 font-bold block">Total: ${nuevoTotal} pts</span>
+</div>`;
+listContainer.appendChild(row);
+});
+}
+
+async function hostNextRound() {
+sfx.click();
+const nextRonda = partida.rondaActual + 1;
+const updates = {};
+players.forEach(p => {
+updates[`sala_de_lanzamiento/jugadores/${p.id}/isCaptain`] = false;
+updates[`sala_de_lanzamiento/jugadores/${p.id}/isAboard`] = true;
+});
+await update(ref(window.db), updates);
+await update(partidaRef, { fase: 'cargando', rondaActual: nextRonda, capitanId: null });
+const q = await getNextQuestion();
+await update(partidaRef, { fase: 'adivinando', pregunta: q });
+}
+
+async function hostFinishMission() {
+sfx.click();
+await update(partidaRef, { fase: 'fin' });
+}
+
+// ==========================================================================
+// 15. PANTALLA: FIN DE LA MISIÓN
+// ==========================================================================
+function renderGameOverScreen() {
+switchScreen('screen-gameover');
+document.getElementById('round-indicator').textContent = 'Misión Concluida';
+const leaderboard = [...players].sort((a, b) => (b.score||0) - (a.score||0));
+const container = document.getElementById('leaderboard-final-list');
+container.innerHTML = '';
+leaderboard.forEach((p, idx) => {
+let badge = "";
+if (idx === 0) badge = `<span class="w-8 h-8 rounded-full bg-yellow-400 text-gray-950 flex items-center justify-center font-bold text-lg"><i class="fa-solid fa-medal"></i></span>`;
+else if (idx === 1) badge = `<span class="w-8 h-8 rounded-full bg-gray-300 text-gray-950 flex items-center justify-center font-bold text-lg"><i class="fa-solid fa-medal"></i></span>`;
+else if (idx === 2) badge = `<span class="w-8 h-8 rounded-full bg-amber-600 text-gray-950 flex items-center justify-center font-bold text-lg"><i class="fa-solid fa-medal"></i></span>`;
+else badge = `<span class="w-8 h-8 rounded-full bg-gray-800 text-gray-400 flex items-center justify-center font-bold text-xs">#${idx + 1}</span>`;
+const card = document.createElement('div');
+card.className = 'flex items-center justify-between bg-gray-950/60 border border-gray-800 p-4 rounded-2xl relative overflow-hidden';
+if (idx === 0) card.classList.add('border-yellow-400/30', 'bg-yellow-950/5');
+card.innerHTML = `
+<div class="flex items-center gap-4">${badge}<div class="bg-gray-900 rounded-full scale-90">${generateAvatarSVG(p.name)}</div>
+<div class="text-left"><h4 class="text-lg font-bold text-white">${p.name}</h4><span class="text-xs text-gray-500 uppercase tracking-widest">Astronauta</span></div></div>
+<div class="text-right"><span class="text-2xl font-black text-cyan-400">${p.score||0}</span><span class="text-xs text-gray-500 font-bold block">PUNTOS</span></div>`;
+container.appendChild(card);
+});
+
+const isHost = partida.hostId === myPlayerId;
+const btnRestart = document.getElementById('btn-restart');
+const waitingRestart = document.getElementById('waiting-host-restart-msg');
+if (isHost) {
+btnRestart.classList.remove('hidden'); waitingRestart.classList.add('hidden');
+btnRestart.onclick = hostResetRoom;
+} else {
+btnRestart.classList.add('hidden'); waitingRestart.classList.remove('hidden');
+}
+}
+
+async function hostResetRoom() {
+sfx.click();
+await remove(ref(window.db, 'sala_de_lanzamiento'));
+sessionStorage.removeItem('nave_mi_id');
+myPlayerId = null;
+seenRoundsForBaseline = new Set();
+baselineScores = {};
+lastAnimatedKey = '';
+}
+
+// ==========================================================================
+// 16. DISTRIBUIDOR PRINCIPAL DE PANTALLAS
+// ==========================================================================
+function renderApp() {
+if (!myPlayerId || !players.find(p => p.id === myPlayerId)) {
+renderJoinScreen();
+return;
+}
+if (!partida || partida.fase === 'lobby') {
+renderLobbyScreen();
+return;
+}
+switch (partida.fase) {
+case 'cargando': renderLoadingScreen(); break;
+case 'adivinando': renderGuessScreen(); break;
+case 'capitan': renderCaptainAndDecisions(); break;
+case 'resultado': renderResultScreen(); break;
+case 'fin': renderGameOverScreen(); break;
+default: renderLobbyScreen();
+}
+}
+
+// ==========================================================================
+// 17. CARGA INICIAL
+// ==========================================================================
+window.onload = function() {
+generateStarfield();
+};
+</script>
+</body>
+</html>
