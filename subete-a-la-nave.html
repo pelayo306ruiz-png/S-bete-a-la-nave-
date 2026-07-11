@@ -507,24 +507,61 @@ function maybeRenderApp() {
   if (playersLoaded && partidaLoaded && estimacionesLoaded) renderApp();
 }
 
+// PANEL DE DIAGNÓSTICO VISIBLE (fijo en la esquina, no requiere consola del navegador)
+const debugPanel = document.createElement('div');
+debugPanel.id = 'debug-panel';
+debugPanel.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;font-size:10px;padding:4px 8px;text-align:center;font-family:monospace;color:white;background:#374151;';
+debugPanel.textContent = 'Iniciando...';
+document.body.prepend(debugPanel);
+let ultimoErrorFirebase = null;
+let conexionFirebase = 'desconocido';
+
+function actualizarPanelDebug() {
+  const color = ultimoErrorFirebase ? '#DC2626' : (conexionFirebase === 'conectado' ? '#065F46' : '#92400E');
+  debugPanel.style.background = color;
+  if (ultimoErrorFirebase) {
+    debugPanel.textContent = `❌ ERROR: ${ultimoErrorFirebase}`;
+  } else {
+    debugPanel.textContent = `${conexionFirebase === 'conectado' ? '🟢' : '🟠'} ${conexionFirebase} · DB: ${firebaseConfig.projectId} · jugadores vistos: ${players.length}`;
+  }
+}
+
+onValue(ref(window.db, '.info/connected'), (snap) => {
+  conexionFirebase = snap.val() === true ? 'conectado' : 'reconectando';
+  actualizarPanelDebug();
+});
+
 onValue(playersRef, (snapshot) => {
   players = [];
   snapshot.forEach((child) => players.push({ id: child.key, ...child.val() }));
   playersLoaded = true;
+  ultimoErrorFirebase = null;
   updateRankingUI();
+  actualizarPanelDebug();
   maybeRenderApp();
+}, (error) => {
+  ultimoErrorFirebase = 'jugadores: ' + error.message;
+  actualizarPanelDebug();
 });
 
 onValue(partidaRef, (snapshot) => {
   partida = snapshot.val();
   partidaLoaded = true;
+  ultimoErrorFirebase = null;
+  actualizarPanelDebug();
   maybeRenderApp();
+}, (error) => {
+  ultimoErrorFirebase = 'partida: ' + error.message;
+  actualizarPanelDebug();
 });
 
 onValue(estimacionesRef, (snapshot) => {
   estimaciones = snapshot.val() || {};
   estimacionesLoaded = true;
   maybeRenderApp();
+}, (error) => {
+  ultimoErrorFirebase = 'estimaciones: ' + error.message;
+  actualizarPanelDebug();
 });
 
 // En móvil, cambiar de app (ej. a WhatsApp para compartir el link) y volver puede
@@ -575,8 +612,13 @@ setInterval(async () => {
     if (freshEstimacionesStr !== JSON.stringify(estimaciones)) { estimaciones = freshEstimaciones; huboCambios = true; }
 
     playersLoaded = true; partidaLoaded = true; estimacionesLoaded = true;
+    ultimoErrorFirebase = null;
+    actualizarPanelDebug();
     if (huboCambios) { updateRankingUI(); maybeRenderApp(); }
-  } catch (e) { /* red temporalmente no disponible: se reintenta en el siguiente ciclo */ }
+  } catch (e) {
+    ultimoErrorFirebase = 'polling: ' + e.message;
+    actualizarPanelDebug();
+  }
 }, 3000);
 
 // ==========================================================================
@@ -1223,5 +1265,4 @@ generateStarfield();
 </script>
 </body>
 </html>
-
 
